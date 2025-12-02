@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>{TITULO} — UrbanRise.io</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f3f5f7;
+      color: #222;
+    }
+
+    /* HEADER */
+    .header {
+      background: #00488F;
+      color: #fff;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .header img.logo {
+      height: 42px;
+      width: auto;
+      object-fit: contain;
+      display: block;
+    }
+
+    .title-block h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 600;
+      line-height: 1.1;
+    }
+
+    .title-block .subtitle {
+      font-size: 13px;
+      opacity: 0.9;
+      margin-top: 3px;
+    }
+
+    .page {
+      max-width: 1100px;
+      margin: 24px auto 40px auto;
+      padding: 0 16px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 24px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+      margin-bottom: 24px;
+    }
+
+    .card h2 {
+      margin-top: 0;
+      margin-bottom: 18px;
+      font-size: 18px;
+      color: #00488F;
+      border-bottom: 1px solid #e2e5ea;
+      padding-bottom: 8px;
+    }
+
+    /* GRID DE DATOS */
+    .datos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 10px 24px;
+    }
+
+    .field {
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .label {
+      font-weight: 600;
+      color: #00488F;
+    }
+
+    /* DESCRIPCIÓN */
+    .descripcion {
+      font-size: 15px;
+      line-height: 1.6;
+      white-space: pre-line;
+    }
+
+    /* GALERÍA */
+    .galeria {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .galeria img {
+      flex: 1 1 calc(33.333% - 10px);
+      max-width: calc(33.333% - 10px);
+      border-radius: 6px;
+      object-fit: cover;
+      height: 180px;
+    }
+
+    @media (max-width: 768px) {
+      .galeria img {
+        flex-basis: calc(50% - 10px);
+        max-width: calc(50% - 10px);
+        height: 160px;
+      }
+    }
+
+    @media (max-width: 540px) {
+      .galeria img {
+        flex-basis: 100%;
+        max-width: 100%;
+        height: 200px;
+      }
+    }
+
+    /* CTA */
+    .cta {
+      text-align: center;
+      margin-top: 22px;
+    }
+
+    .cta a {
+      display: inline-block;
+      background: #F4950C;
+      color: #fff;
+      padding: 14px 30px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 16px;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    }
+
+    .cta a:hover {
+      opacity: 0.92;
+    }
+
+    .footer {
+      text-align: center;
+      font-size: 12px;
+      color: #777;
+      margin-top: 18px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <img
+      class="logo"
+      src="{LOGO_URL}"
+      alt="UrbanRise.io"
+    />
+    <div class="title-block">
+      <h1>UrbanRise.io — Ficha de Propiedad</h1>
+      <span class="subtitle">{TITULO}</span>
+    </div>
+  </header>
+
+  <!-- CONTENIDO -->
+  <main class="page">
+
+    <!-- DATOS PRINCIPALES -->
+    <section class="card">
+      <h2>Datos principales</h2>
+      <div class="datos-grid">
+
+        <div class="field"><span class="label">Asesor:</span> Gabriel Rearden</div>
+        <div class="field"><span class="label">WhatsApp:</span> 099 863 961</div>
+        <div class="field"><span class="label">Empresa:</span> UrbanRise.io</div>
+
+        <div class="field"><span class="label">Operación:</span> {OPERACION}</div>
+        <div class="field"><span class="label">Tipo de propiedad:</span> {TIPO}</div>
+        <div class="field"><span class="label">Título:</span> {TITULO}</div>
+        <div class="field"><span class="label">Ubicación:</span> {UBICACION}</div>
+        <div class="field"><span class="label">Precio:</span> {PRECIO}</div>
+        <div class="field"><span class="label">Superficie cubierta / total:</span> {SUPERFICIE}</div>
+        <div class="field"><span class="label">Dormitorios / ambientes:</span> {DORMITORIOS_AMBIENTES}</div>
+        <div class="field"><span class="label">Baños:</span> {BANIOS}</div>
+        <div class="field"><span class="label">Cochera:</span> {COCHERA}</div>
+        <div class="field"><span class="label">Estado:</span> {ESTADO}</div>
+        <div class="field"><span class="label">Gastos comunes / expensas:</span> {EXPENSAS}</div>
+        <div class="field"><span class="label">Amenities / Destacados:</span> {DESTACADOS}</div>
+        <div class="field"><span class="label">Año de construcción:</span> {ANIO_CONSTRUCCION}</div>
+        <div class="field"><span class="label">Pisos edificio / unidad:</span> {PISOS}</div>
+        <div class="field"><span class="label">Orientación:</span> {ORIENTACION}</div>
+        <div class="field"><span class="label">Mascotas:</span> {MASCOTAS}</div>
+        <div class="field"><span class="label">Mobiliario:</span> {MOBILIARIO}</div>
+
+      </div>
+    </section>
+
+    <!-- GALERÍA -->
+    <section class="card">
+      <h2>Galería de fotos</h2>
+      <div class="galeria">
+        {GALERIA_IMAGENES}
+      </div>
+    </section>
+
+    <!-- DESCRIPCIÓN -->
+    <section class="card">
+      <h2>Descripción</h2>
+      <div class="descripcion">
+        {DESCRIPCION}
+      </div>
+
+      <div class="cta">
+        <a href="https://wa.me/59899863961?text=Estoy%20interesado%20en%20esta%20propiedad">
+          Quiero más información
+        </a>
+      </div>
+    </section>
+
+    <div class="footer">
+      UrbanRise.io – Real Estate &amp; Investments
+    </div>
+
+  </main>
+
+</body>
+</html>
