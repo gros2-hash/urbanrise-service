@@ -211,11 +211,6 @@ def scrapear_propiedad_remax(url_anuncio: str) -> dict:
 # ========= SCRAPER CENTURY 21 =========
 
 def scrapear_propiedad_century21(url_anuncio: str) -> dict:
-    """
-    Scraper 100% funcional para Century21 Uruguay.
-    Captura imágenes, características, amenities y descripción.
-    """
-
     resp = requests.get(url_anuncio, headers=HEADERS, timeout=20)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -232,12 +227,12 @@ def scrapear_propiedad_century21(url_anuncio: str) -> dict:
     # PRECIO
     # ---------------------------
     precio = "No especificado"
-    price_el = soup.select_one("h2.property-price, .price, [class*=price]")
+    price_el = soup.select_one(".price, .property-price, h2")
     if price_el:
         precio = price_el.get_text(" ", strip=True)
 
     # ---------------------------
-    # UBICACIÓN (breadcrumb real)
+    # UBICACIÓN
     # ---------------------------
     ubicacion = "No especificada"
     bc = soup.select_one("ol.breadcrumb")
@@ -245,61 +240,74 @@ def scrapear_propiedad_century21(url_anuncio: str) -> dict:
         ubicacion = bc.get_text(" ", strip=True)
 
     # ---------------------------
-    # IMÁGENES (del panel #fotos)
+    # IMÁGENES (nuevo método real)
     # ---------------------------
     imagenes = []
 
-    for img in soup.select("#fotos img"):
+    # 1) Galería grande
+    for img in soup.select("div.row.gx-1.gy-1 img, div.row.gx-1 img"):
         src = img.get("data-src") or img.get("src")
         if not src:
             continue
-
         src = urljoin(url_anuncio, src)
-
-        # evitar logos
         if "logo" in src.lower():
             continue
-
         if src not in imagenes:
             imagenes.append(src)
+
+    # 2) fallback
+    if not imagenes:
+        for img in soup.find_all("img"):
+            src = img.get("src")
+            if not src:
+                continue
+            if "uploads" in src:
+                imagenes.append(urljoin(url_anuncio, src))
 
     imagenes = imagenes[:20]
 
     # ---------------------------
-    # CARACTERÍSTICAS (feature-title + feature-value)
+    # CARACTERÍSTICAS (ambos diseños)
     # ---------------------------
     caracteristicas = {}
 
+    # --- Diseño 1 ---
     for box in soup.select(".col-lg-1.col-sm-6.col-md-4.text-center"):
         label = box.select_one(".feature-title")
         value = box.select_one(".feature-value")
-
         if label and value:
-            key = label.get_text(strip=True).lower()
-            val = value.get_text(strip=True)
+            caracteristicas[label.get_text(strip=True).lower()] = value.get_text(strip=True)
+
+    # --- Diseño 2 (como en tu captura) ---
+    for box in soup.select(".d-flex.align-items-center.my-2"):
+        name = box.find("div")
+        value = box.find_all("div")
+        if name and len(value) > 1:
+            key = name.get_text(strip=True).lower()
+            val = value[1].get_text(strip=True)
             caracteristicas[key] = val
 
     def get(keys, default="No especificado"):
         for k in keys:
-            if k in caracteristicas:
-                return caracteristicas[k]
+            if k.lower() in caracteristicas:
+                return caracteristicas[k.lower()]
         return default
 
     dormitorios = get(["dormitorios"])
     banios = get(["baños", "baño"])
-    superficie = get(["superficie total", "superficie", "construcción"])
+    superficie = get(["superficie", "superficie total", "construcción"])
     cochera = get(["cocheras", "cochera"])
     pisos = get(["cantidad de pisos"])
 
-    # Normalizar cochera
+    # Normalización de cochera
     if cochera.isdigit():
-        cochera = "1 cochera" if cochera == "1" else f"{cochera} cocheras"
+        cochera = f"{cochera} cocheras" if cochera != "1" else "1 cochera"
 
     # ---------------------------
     # DESCRIPCIÓN
     # ---------------------------
     descripcion = ""
-    desc_box = soup.select_one(".property-description-container")
+    desc_box = soup.select_one(".property-description-container, .col-lg-8 p")
 
     if desc_box:
         textos = [
@@ -311,17 +319,6 @@ def scrapear_propiedad_century21(url_anuncio: str) -> dict:
 
     if not descripcion:
         descripcion = "Descripción no disponible."
-
-    # ---------------------------
-    # AMENITIES
-    # ---------------------------
-    amenities = []
-    for li in soup.select(".property-amenities li"):
-        txt = li.get_text(" ", strip=True)
-        if txt:
-            amenities.append(txt)
-
-    destacados = ", ".join(amenities) if amenities else "No especificado"
 
     return {
         "OPERACION": "Alquiler" if "alquiler" in texto_lower else "Venta",
@@ -335,7 +332,7 @@ def scrapear_propiedad_century21(url_anuncio: str) -> dict:
         "COCHERA": cochera,
         "ESTADO": "No especificado",
         "EXPENSAS": "No especificado",
-        "DESTACADOS": destacados,
+        "DESTACADOS": "No especificado",
         "ANIO_CONSTRUCCION": get(["año de construcción"]),
         "PISOS": pisos,
         "ORIENTACION": "No especificado",
@@ -704,6 +701,7 @@ def crear_ficha(payload: CrearFichaRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
