@@ -215,138 +215,122 @@ def scrapear_propiedad_century21(url_anuncio: str) -> dict:
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
 
-    texto_global = soup.get_text(separator=" ", strip=True)
-    texto_lower = texto_global.lower()
+    texto_lower = soup.get_text(" ", strip=True).lower()
 
-    # ----- TÍTULO -----
-    titulo_el = soup.find("h1") or soup.find("h2")
-    titulo = titulo_el.get_text(strip=True) if titulo_el else "Propiedad UrbanRise"
+    # ---------------------------
+    # TÍTULO
+    # ---------------------------
+    titulo = "Propiedad Century21"
+    h1 = soup.find("h1")
+    if h1:
+        titulo = h1.get_text(strip=True)
 
-    # ----- PRECIO -----
+    # ---------------------------
+    # PRECIO
+    # ---------------------------
     precio = "No especificado"
-    posibles_precios = soup.find_all(
-        string=lambda t: t and any(moeda in t for moeda in ["USD", "US$", "U$S", "UYU", "$"])
-    )
-    if posibles_precios:
-        candidatos = [p.strip() for p in posibles_precios if p.strip()]
-        candidatos = sorted(candidatos, key=len)
-        precio = candidatos[0]
+    price_el = soup.select_one(".price-title, .price, [class*=price]")
+    if price_el:
+        precio = price_el.get_text(strip=True)
 
-    # ----- UBICACIÓN -----
+    # ---------------------------
+    # UBICACIÓN
+    # ---------------------------
     ubicacion = "No especificada"
-    migas = soup.select("nav.breadcrumb, ol.breadcrumb, .breadcrumb")
-    if migas:
-        ubicacion = " / ".join(migas[0].get_text(separator=" ", strip=True).split())
+    ub = soup.select_one(".property-location, .location, [class*=ubicacion]")
+    if ub:
+        ubicacion = ub.get_text(strip=True)
 
-    # ----- OPERACIÓN -----
-    operacion = "No especificado"
-    if "alquiler" in texto_lower:
-        operacion = "Alquiler"
-    elif "venta" in texto_lower or "se vende" in texto_lower:
-        operacion = "Venta"
+    # ---------------------------
+    # GRILLA DE CARACTERÍSTICAS
+    # ---------------------------
+    caracteristicas = {}
 
-    # ----- TIPO -----
-    tipo = "No especificado"
-    if "monoambiente" in texto_lower:
-        tipo = "Apartamento"
-    elif "apartamento" in texto_lower or "apto" in texto_lower:
-        tipo = "Apartamento"
-    elif "casa" in texto_lower:
-        tipo = "Casa"
-    elif "local" in texto_lower:
-        tipo = "Local comercial"
-    elif "oficina" in texto_lower:
-        tipo = "Oficina"
+    for box in soup.select(".property-feature, .col-md-4, .feature-box"):
+        key_el = box.find("span")
+        val_el = box.find("strong")
 
-    # ----- DESCRIPCIÓN -----
-    desc_el = soup.select_one("div[class*=description], div[class*=descripcion], .property-description")
-    if desc_el:
-        descripcion = " ".join(desc_el.get_text(" ", strip=True).split())
-    else:
-        parrafos = [p.get_text(" ", strip=True) for p in soup.find_all("p")]
-        parrafos_largos = [p for p in parrafos if len(p) > 120]
-        if parrafos_largos:
-            descripcion = "\n\n".join(parrafos_largos[:3])
-        else:
-            descripcion = "Descripción no disponible en el portal."
+        if key_el and val_el:
+            key = key_el.get_text(strip=True).lower().replace(":", "")
+            val = val_el.get_text(strip=True)
+            caracteristicas[key] = val
 
-    # ----- SUPERFICIE -----
-    superficie = "No especificado"
-    m_sup = re.search(r"(\d{2,4})\s*(m²|m2|m\.2)", texto_lower)
-    if m_sup:
-        superficie = f"{m_sup.group(1)} m² (aprox.)"
+    # Ej: {'dormitorios': '3', 'baños': '1', 'superficie': '52 m²', ...}
 
-    # ----- DORMITORIOS / BAÑOS / ESTADO -----
-    dormitorios_amb = "No especificado"
-    m_dorm = re.search(r"(\d+)\s+dormitorio[s]?", texto_lower)
-    if m_dorm:
-        dormitorios_amb = f"{m_dorm.group(1)} dormitorios"
-    elif "monoambiente" in texto_lower:
-        dormitorios_amb = "Monoambiente"
+    def get(keys, default="No especificado"):
+        for k in keys:
+            if k in caracteristicas:
+                return caracteristicas[k]
+        return default
 
-    banios = "No especificado"
-    m_banio = re.search(r"(\d+(?:[.,]\d+)?)\s*bañ[o|os]", texto_lower)
-    if m_banio:
-        cant = m_banio.group(1).replace(",", ".")
-        banios = f"{cant} baños"
+    dormitorios = get(["dormitorios"])
+    banios = get(["baños", "baño"])
+    superficie = get(["superficie", "superficie total", "área construida"])
+    cochera = get(["cocheras", "garage", "garaje", "cochera"])
+    anio = get(["año de construcción"])
+    pisos = get(["pisos", "pisos edificio", "cantidad de pisos"])
+    orientacion = get(["orientación"])
 
-    estado = "No especificado"
-    if "a estrenar" in texto_lower:
-        estado = "A estrenar"
-    elif "reciclado" in texto_lower:
-        estado = "Reciclado"
-    elif "buen estado" in texto_lower:
-        estado = "Buen estado"
+    # Normalizar cochera
+    if cochera.isdigit():
+        cochera = "1 cochera" if cochera == "1" else f"{cochera} cocheras"
 
-    # ----- COCHERA -----
-    cochera = detectar_cochera(texto_lower)
+    # ---------------------------
+    # AMENITIES (lista con íconos)
+    # ---------------------------
+    amenities = []
+    for li in soup.select(".amenities-list li, .features-list li"):
+        txt = li.get_text(" ", strip=True)
+        if txt:
+            amenities.append(txt)
 
-    # ----- IMÁGENES -----
-    imagenes: list[str] = []
+    destacados = ", ".join(amenities) if amenities else "No especificado"
 
-    for img in soup.select("div.row.gx-1.gy-1 img"):
-        src = img.get("src")
+    # ---------------------------
+    # IMÁGENES
+    # ---------------------------
+    imagenes = []
+
+    # Todas las imágenes lazy-loaded
+    for img in soup.find_all("img"):
+        src = img.get("data-src") or img.get("data-lazy") or img.get("src")
         if not src:
             continue
-        src_abs = urljoin(url_anuncio, src)
-        low = src_abs.lower()
-        if any(x in low for x in ["logo", "icon", "avatar", "placeholder"]):
+
+        src = urljoin(url_anuncio, src)
+
+        if any(bad in src.lower() for bad in ["logo", "icon", "placeholder"]):
             continue
-        if src_abs not in imagenes:
-            imagenes.append(src_abs)
 
-    if not imagenes:
-        for img in soup.find_all("img"):
-            src = img.get("src")
-            if not src:
-                continue
-            src_abs = urljoin(url_anuncio, src)
-            low = src_abs.lower()
-            if any(x in low for x in ["logo", "icon", "avatar", "placeholder"]):
-                continue
-            if "propiedades" not in low and "/uploads/" not in low:
-                continue
-            if src_abs not in imagenes:
-                imagenes.append(src_abs)
+        if src not in imagenes:
+            imagenes.append(src)
 
-    imagenes = imagenes[:12]
+    imagenes = imagenes[:15]
 
-    datos = {
-        "OPERACION": operacion,
-        "TIPO": tipo,
+    # ---------------------------
+    # DESCRIPCIÓN
+    # ---------------------------
+    descripcion = "Descripción no disponible."
+    desc_el = soup.select_one(".property-description, .description, [class*=descripcion]")
+    if desc_el:
+        descripcion = desc_el.get_text(" ", strip=True)
+
+    return {
+        "OPERACION": "Alquiler" if "alquiler" in texto_lower else "Venta",
+        "TIPO": "No especificado",
         "TITULO": titulo,
         "UBICACION": ubicacion,
         "PRECIO": precio,
         "SUPERFICIE": superficie,
-        "DORMITORIOS_AMBIENTES": dormitorios_amb,
+        "DORMITORIOS_AMBIENTES": dormitorios,
         "BANIOS": banios,
         "COCHERA": cochera,
-        "ESTADO": estado,
+        "ESTADO": "No especificado",
         "EXPENSAS": "No especificado",
-        "DESTACADOS": "No especificado",
-        "ANIO_CONSTRUCCION": "No especificado",
-        "PISOS": "No especificado",
-        "ORIENTACION": "No especificado",
+        "DESTACADOS": destacados,
+        "ANIO_CONSTRUCCION": anio,
+        "PISOS": pisos,
+        "ORIENTACION": orientacion,
         "MASCOTAS": "No especificado",
         "MOBILIARIO": "No especificado",
         "DESCRIPCION": descripcion,
@@ -712,5 +696,6 @@ def crear_ficha(payload: CrearFichaRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
