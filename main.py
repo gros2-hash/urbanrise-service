@@ -549,6 +549,75 @@ def scrapear_propiedad_generico(url_anuncio: str) -> dict:
 
     return datos
 
+def scrapear_propiedad_mercadolibre(url_anuncio: str) -> dict:
+    """
+    Scraper especializado para MercadoLibre Uruguay.
+    Obtiene características desde la API oficial:
+    https://api.mercadolibre.com/items/MLUxxxxxxx
+    """
+    # Extraer ID del tipo MLU-654021285 o MLU654021285
+    m = re.search(r"(MLU)-?(\d+)", url_anuncio, re.IGNORECASE)
+    if not m:
+        raise RuntimeError("No se pudo extraer el ID de MercadoLibre desde la URL")
+
+    item_id = f"{m.group(1).upper()}{m.group(2)}"  # MLU654021285
+
+    api_url = f"https://api.mercadolibre.com/items/{item_id}"
+    api_resp = requests.get(api_url, timeout=20)
+    if api_resp.status_code != 200:
+        raise RuntimeError(f"Error API MercadoLibre: {api_resp.text}")
+
+    data = api_resp.json()
+
+    # -----------------------------
+    # TITULO
+    # -----------------------------
+    titulo = data.get("title", "Propiedad ML")
+
+    # -----------------------------
+    # PRECIO
+    # -----------------------------
+    precio = data.get("price", "No especificado")
+
+    # -----------------------------
+    # IMAGENES
+    # -----------------------------
+    imagenes = [pic["secure_url"] for pic in data.get("pictures", [])][:12]
+
+    # -----------------------------
+    # CARACTERISTICAS
+    # -----------------------------
+    atributos = {a["name"].lower(): a.get("value_name") for a in data.get("attributes", [])}
+
+    def get(attr_name):
+        attr_name = attr_name.lower()
+        return atributos.get(attr_name, "No especificado")
+
+    datos = {
+        "OPERACION": "Alquiler" if "alquiler" in titulo.lower() else "Venta",
+        "TIPO": get("tipo de propiedad"),
+        "TITULO": titulo,
+        "UBICACION": get("ubicación") or data.get("location", {}).get("address_line", "No especificada"),
+        "PRECIO": f"USD {precio}" if isinstance(precio, (int, float)) else precio,
+        "SUPERFICIE": get("superficie total"),
+        "DORMITORIOS_AMBIENTES": get("dormitorios"),
+        "BANIOS": get("baños"),
+        "COCHERA": get("cocheras"),
+        "ESTADO": "No especificado",
+        "EXPENSAS": "No especificado",
+        "DESTACADOS": "No especificado",
+        "ANIO_CONSTRUCCION": get("año de construcción"),
+        "PISOS": get("cantidad de pisos"),
+        "ORIENTACION": get("orientación"),
+        "MASCOTAS": get("acepta mascotas"),
+        "MOBILIARIO": "No especificado",
+        "DESCRIPCION": data.get("plain_text", "Descripción no disponible."),
+        "IMAGENES": imagenes,
+    }
+
+    return datos
+
+
 
 # ========= ROUTER DE SCRAPERS =========
 
@@ -643,4 +712,5 @@ def crear_ficha(payload: CrearFichaRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
 
