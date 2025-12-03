@@ -10,228 +10,113 @@ class FichaRequest(BaseModel):
     url: str
     slug: str
 
+# ----------------------------------------------------------
+# Funciones utilitarias
+# ----------------------------------------------------------
 
-# ---------------------------------------------------------
-# UTILIDADES
-# ---------------------------------------------------------
-
-def clean(t):
+def limpiar_texto(t):
     if not t:
         return "No especificado"
-    t = re.sub(r'\s+', ' ', t.replace("\n", " ").replace("\t", " ").strip())
-    if "preg" in t.lower():
-        return "No especificado"
+    t = t.replace("\n", " ").replace("\t", " ").strip()
+    t = re.sub(r"\s+", " ", t)
     return t
 
+def normalizar_valor(v):
+    if not v or "preg" in v.lower():
+        return "No especificado"
+    return limpiar_texto(v)
 
-def extract_number(text):
-    matches = re.findall(r"\d+", text)
-    return matches[0] if matches else "No especificado"
+# ----------------------------------------------------------
+# EXTRAER COCHERA / GARAGE DE MANERA INTELIGENTE
+# ----------------------------------------------------------
 
-
-def match_by_keywords(soup, keywords):
+def extraer_cochera(soup):
     """
-    Busca valores con formato "label: valor" o tablas.
+    Detecta variantes:
+    garage, garajes, cochera, estacionamiento, parking, parqueo, etc.
     """
-    tags = soup.find_all(["li", "p", "span", "div", "td", "th"])
-    for tag in tags:
-        txt = tag.get_text(" ", strip=True).lower()
-        for kw in keywords:
-            if kw in txt:
-                # Caso label: valor
-                if ":" in txt:
-                    return clean(txt.split(":", 1)[1])
-                # Caso "Garage 1" o "1 Garage"
-                num = extract_number(txt)
-                if num != "No especificado":
-                    return num
+    patrones = [
+        r"cochera",
+        r"garage",
+        r"garajes",
+        r"estacionamiento",
+        r"parking",
+        r"parqueo",
+        r"espacio.*auto",
+        r"autos?",
+    ]
+
+    texto_total = soup.get_text(separator=" ").lower()
+
+    # 1) Buscar frases como "1 garage", "2 cocheras", etc.
+    for p in patrones:
+        match = re.search(rf"(\d+)\s+{p}", texto_total)
+        if match:
+            return match.group(1)
+
+    # 2) Buscar campos en tablas o listas de características
+    labels = soup.find_all(["li", "div", "span", "p", "td", "th"])
+
+    for lbl in labels:
+        t = lbl.get_text(" ", strip=True).lower()
+        for p in patrones:
+            if p in t:
+                # Caso "Garage: No", "Garajes: 2", etc
+                if ":" in t:
+                    valor = t.split(":", 1)[1].strip()
+                    return normalizar_valor(valor)
+                # Caso de solo la palabra → es cochera pero sin detalle
                 return "Sí"
+
+    # 3) Si no aparece ninguna referencia
     return "No especificado"
 
 
-# ---------------------------------------------------------
-# EXTRACTORES ESPECÍFICOS
-# ---------------------------------------------------------
+# ----------------------------------------------------------
+# SCRAPPER GENÉRICO
+# ----------------------------------------------------------
 
-def get_title(soup):
-    h1 = soup.find("h1")
-    if h1:
-        return clean(h1.text)
-    return "No especificado"
+def scrappear(url):
+    r = requests.get(url, timeout=15)
+    soup = BeautifulSoup(r.text, "html.parser")
 
+    # Extraer cochera
+    cochera = extraer_cochera(soup)
 
-def get_price(soup):
-    text = soup.get_text(" ", strip=True).lower()
-    m = re.search(r"\$\s?u?s?\s?\d[\d\.\s]*", text)
-    if m:
-        return clean(m.group(0))
-    return match_by_keywords(soup, ["precio", "valor"])
+    # ------------------------------------------------------
+    # Aquí puedes agregar más extractores genéricos:
+    # dormitorios, baños, superficie, etc.
+    # ------------------------------------------------------
 
-
-def get_operation(soup):
-    text = soup.get_text(" ", strip=True).lower()
-    if "alquiler" in text:
-        return "Alquiler"
-    if "venta" in text:
-        return "Venta"
-    if "tempor" in text:
-        return "Temporal"
-    return match_by_keywords(soup, ["operación", "tipo de operación"])
-
-
-def get_property_type(soup):
-    return match_by_keywords(soup, ["tipo de propiedad", "tipo de inmueble", "apartamento", "casa", "local", "monoambiente"])
-
-
-def get_location(soup):
-    return match_by_keywords(soup, ["ubicación", "zona", "barrio", "departamento"])
-
-
-def get_dormitorios(soup):
-    txt = match_by_keywords(soup, ["dormitorios", "dormitorio", "cuartos", "habitaciones"])
-    return txt
-
-
-def get_banos(soup):
-    return match_by_keywords(soup, ["baño", "baños", "bath"])
-
-
-def get_superficie(soup):
-    text = match_by_keywords(soup, ["superficie", "m2", "metros", "área"])
-    return text
-
-
-def get_estado(soup):
-    return match_by_keywords(soup, ["estado", "condición"])
-
-
-def get_gastos(soup):
-    return match_by_keywords(soup, ["gastos comunes", "expensas"])
-
-
-def get_mascotas(soup):
-    val = match_by_keywords(soup, ["mascotas", "pet friendly"])
-    if val.lower() in ["si", "sí", "acepta", "permitido"]:
-        return "Sí"
-    if val.lower() in ["no", "no acepta"]:
-        return "No"
-    return val
-
-
-def get_mobiliario(soup):
-    text = soup.get_text(" ", strip=True).lower()
-    if "amoblado" in text or "amueblado" in text:
-        return "Amueblado"
-    return match_by_keywords(soup, ["mobiliario", "amueblado"])
-
-
-def get_orientacion(soup):
-    return match_by_keywords(soup, ["orientación", "orientacion", "frente", "contrafrente", "este", "oeste", "norte", "sur"])
-
-
-def get_anio(soup):
-    return match_by_keywords(soup, ["año de construcción", "antigüedad"])
-
-
-def get_cochera(soup):
-    keywords = ["cochera", "garage", "garaje", "estacionamiento", "parking", "parqueo"]
-    val = match_by_keywords(soup, keywords)
-
-    if val != "No especificado":
-        return val
-
-    # búsqueda avanzada en texto completo
-    full = soup.get_text(" ", strip=True).lower()
-
-    # patrones como "garage para 2 autos"
-    m = re.search(r"(garage|cochera|estacionamiento)[^\d]{0,10}(\d+)", full)
-    if m:
-        return m.group(2)
-
-    # "2 garages"
-    m = re.search(r"(\d+)\s+(garage|cochera|estacionamiento)", full)
-    if m:
-        return m.group(1)
-
-    # si solo aparece la palabra → Sí
-    for kw in keywords:
-        if kw in full:
-            return "Sí"
-
-    return "No especificado"
-
-
-def get_imagenes(soup):
-    urls = set()
-
-    # <img src="">
-    for img in soup.find_all("img"):
-        src = img.get("src") or img.get("data-src")
-        if src and src.startswith("http"):
-            urls.add(src)
-
-    # <source srcset="">
-    for s in soup.find_all("source"):
-        src = s.get("srcset")
-        if src:
-            parts = [p.strip() for p in src.split(",")]
-            for p in parts:
-                u = p.split(" ")[0]
-                if u.startswith("http"):
-                    urls.add(u)
-
-    return list(urls)
-
-
-def get_descripcion(soup):
-    # Buscar párrafos largos
-    parrafos = soup.find_all("p")
-    textos = [p.get_text(" ", strip=True) for p in parrafos if len(p.get_text(strip=True)) > 80]
-    if textos:
-        return clean(" ".join(textos))
-
-    return "No especificado"
-
-
-# ---------------------------------------------------------
-# SCRAPPER PRINCIPAL
-# ---------------------------------------------------------
-
-def scrape(url):
-    html = requests.get(url, timeout=20).text
-    soup = BeautifulSoup(html, "html.parser")
-
-    return {
-        "titulo": get_title(soup),
-        "operacion": get_operation(soup),
-        "tipo_propiedad": get_property_type(soup),
-        "precio": get_price(soup),
-        "ubicacion": get_location(soup),
-        "dormitorios": get_dormitorios(soup),
-        "banos": get_banos(soup),
-        "superficie": get_superficie(soup),
-        "estado": get_estado(soup),
-        "gastos_comunes": get_gastos(soup),
-        "cochera": get_cochera(soup),
-        "anio_construccion": get_anio(soup),
-        "orientacion": get_orientacion(soup),
-        "mascotas": get_mascotas(soup),
-        "mobiliario": get_mobiliario(soup),
-        "descripcion": get_descripcion(soup),
-        "imagenes": get_imagenes(soup),
+    data = {
+        "titulo": "No especificado",
+        "cochera": cochera,
+        "imagenes": [],
     }
 
+    # Título genérico
+    title = soup.find("h1")
+    if title:
+        data["titulo"] = limpiar_texto(title.text)
 
-# ---------------------------------------------------------
-# FASTAPI ENDPOINT
-# ---------------------------------------------------------
+    # Imágenes genéricas
+    for img in soup.find_all("img"):
+        src = img.get("src")
+        if src and src.startswith("http"):
+            data["imagenes"].append(src)
+
+    return data
+
+
+# ----------------------------------------------------------
+# ENDPOINT PRINCIPAL
+# ----------------------------------------------------------
 
 @app.post("/crear-ficha")
 def crear_ficha(req: FichaRequest):
-    datos = scrape(req.url)
-
+    datos = scrappear(req.url)
     return {
         "ok": True,
         "slug": req.slug,
-        "ficha": datos
+        "datos": datos
     }
